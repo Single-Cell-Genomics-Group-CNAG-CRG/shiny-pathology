@@ -44,28 +44,9 @@ ui <- shiny::fluidPage(
                            # multiple = TRUE,
                            multiple = FALSE),
             shiny::actionButton(inputId = "apply_groupby", label = "Update Grouping"),
-            
-            # Slider to determine point size of UMAP plots
-            # sliderInput("size", "Dot size:",
-            #             min = 0,
-            #             max = 5,
-            #             value = 3,
-            #             step = 0.05),
-            # Slider to determine point size of UMAP plots
-            # sliderInput("alpha", "Dot transparency:",
-            #             min = 0,
-            #             max = 1,
-            #             value = 1,
-            #             step = 0.1)
-        ),
-
+            ),
         # Show a plot of the generated distribution
         shiny::mainPanel(
-            # fluidRow(
-                     # column(6,shiny::plotOutput('img_plot')),
-                     # column(6,plotly::plotlyOutput('sel_plot'))
-            # ),
-            # shiny::plotOutput("img_plot", width = "50%"),
             plotly::plotlyOutput("sel_plot", width = "100%", height = 800),
             DT::DTOutput("barcode_table")
         )
@@ -137,7 +118,7 @@ server <- function(input, output, session) {
         
         # Read data from reactive observed slots
         metadata_df <- dfInput()
-        # if (!bases::is.null(metadata_df)) {
+
         pp <- plotly::plot_ly(
             data = metadata_df,
             x = metadata_df[, "coord_x"],
@@ -153,7 +134,6 @@ server <- function(input, output, session) {
                 scaleanchor = "x",
                 scaleratio = 1),
             images = base::list(
-                # source = base64enc::dataURI(file = "../tonsil_atlas/spatial_transcriptomics/01-spaceranger/img/esvq52_nluss5_V19S23-039_C1.jpg"),
                 source = plotly::raster2uri(grDevices::as.raster(img_obj)),
                 x = 0, y = -base::nrow(img_obj),
                 sizex = base::ncol(img_obj), sizey = -base::nrow(img_obj),
@@ -164,8 +144,6 @@ server <- function(input, output, session) {
                 layer = "below"
             )
         )
-            # } else pp <- NULL
-            
             pp
         
         })
@@ -196,13 +174,11 @@ server <- function(input, output, session) {
                         x = base::as.character(base::round(x, 6)),
                         y = base::as.character(base::round(y, 6))
                     ) %>%
-                    # dplyr::mutate(y = -y) %>%
                     dplyr::left_join(metadata_df,
                                      by = c("y" = "coord_y",
                                             "x" = "coord_x")) %>%
                     dplyr::select("pointNumber", "x", "y", "barcode")
                 
-                # filename <- glue::glue("{sel_gene()}-shinyapp")
                 filename <- glue::glue("selection-shinyapp")
                 # Return datatable with the csv option to save the table directly
                 # Download options following this -> https://rstudio.github.io/DT/003-tabletools-buttons.html
@@ -214,17 +190,6 @@ server <- function(input, output, session) {
                         dom = 'Bfrtip',
                         buttons =  base::list(base::list(extend = "csv",
                                                          filename = filename))
-                        # buttons = list(list(
-                        #   extend = 'collection',
-                        #   buttons = c('csv', 'excel', 'pdf'),
-                        #   text = 'Download'
-                        # ))
-                        # list("copy", "print", list(
-                        #   extend = "collection",
-                        #   buttons = c("csv", "excel", "pdf"),
-                        #   filename = filename,
-                        #   text = "Download"
-                        # ))
                     )
                 )
             }
