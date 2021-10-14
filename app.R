@@ -13,17 +13,16 @@ source("functions.R")
 # Metadata dataframe set as NULL at the beginning to avoid showing error
 if (! base::exists("metadata_df")) metadata_df <- NULL
 if (! base::exists("img")) img_obj <- NULL
-# metadata_df <- base::readRDS("../tonsil_atlas/spatial_transcriptomics/misc/metadata_esvq52_nluss5.rds")
-# img_obj <- jpeg::readJPEG("../tonsil_atlas/spatial_transcriptomics/01-spaceranger/img/esvq52_nluss5_V19S23-039_C1.jpg")
 
-# img <- jpeg::readJPEG(img_path)
 # Define UI for application that draws a histogram
 ui <- shiny::fluidPage(
+    # Add a theme
+    theme = shinythemes::shinytheme("flatly"),
 
     # Application title
     shiny::titlePanel("Pathology annotation"),
 
-    # Sidebar with a slider input for number of bins 
+    # Sidebar with a slider input for number of bins
     shiny::sidebarLayout(
         shiny::sidebarPanel(width = 2,
             # Load Metadata
@@ -43,7 +42,8 @@ ui <- shiny::fluidPage(
                            options = list(create = TRUE),
                            # multiple = TRUE,
                            multiple = FALSE),
-            shiny::actionButton(inputId = "apply_groupby", label = "Update Grouping"),
+            shiny::actionButton(inputId = "apply_groupby",
+                                label = "Update Grouping"),
             ),
         # Show a plot of the generated distribution
         shiny::mainPanel(
@@ -70,11 +70,11 @@ server <- function(input, output, session) {
         # Load data
         # Read marker list
         file1 <- input$metadata
-        if (base::is.null( file1 ) ) { return() }
+        if (base::is.null(file1)) return()
         metadata_df <<- base::readRDS(file1$datapath)
         
         file2 <- input$img_fn
-        if( base::is.null( file2 ) ) { return() }
+        if (base::is.null(file2)) return()
         # Load image as jpg
         img_obj <<- jpeg::readJPEG(file2$datapath)
         
@@ -117,7 +117,7 @@ server <- function(input, output, session) {
         input$groupby
     })
     
-    dfInput <- shiny::reactive({
+    df_input <- shiny::reactive({
         ## modifying metadata to see if this helps
         metadata_df[base::order(metadata_df[, groupby_var()]), ]
     })
@@ -126,7 +126,7 @@ server <- function(input, output, session) {
     output$sel_plot <- plotly::renderPlotly({
         
         # Read data from reactive observed slots
-        metadata_df <- dfInput()
+        metadata_df <- df_input()
 
         pp <- plotly::plot_ly(
             data = metadata_df,
@@ -162,10 +162,9 @@ server <- function(input, output, session) {
         # It is important here to set server = FALSE so that when we save the table in CSV format i saves ALL the entries. By default it is TRUE and it only saves those entries currently shown in the table!
         # Note that your users might run into performance and memory issues using server=FALSE if your data table is very large.
         # https://stackoverflow.com/questions/50508854/button-extension-to-download-all-data-or-only-visible-data
-        server = FALSE,
-        {
+        server = FALSE, {
             # Read data from reactive observed slots
-            metadata_df <- dfInput()
+            metadata_df <- df_input()
             
             metadata_df <- metadata_df %>%
                 # Round and make as character so we can then join with the d dataframe representing the coordinates in the shiny app.
@@ -196,7 +195,7 @@ server <- function(input, output, session) {
                     data = d,
                     extensions = c("Buttons"),
                     options = base::list(
-                        dom = 'Bfrtip',
+                        dom = "Bfrtip",
                         buttons =  base::list(base::list(extend = "csv",
                                                          filename = filename))
                     )
