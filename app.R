@@ -2,9 +2,12 @@
 
 library(shiny)
 library(shinyjs)
+library(shinythemes)
+library(grDevices)
 library(jpeg)
-library(ggplot2)
+library(png)
 library(plotly)
+library(dplyr)
 library(DT)
 
 # Source functions used
@@ -187,7 +190,7 @@ server <- function(input, output, session) {
                                             "x" = "coord_x")) %>%
                     dplyr::select("pointNumber", "x", "y", "barcode")
                 
-                filename <- glue::glue("selection-shinyapp")
+                filename <- "selection-shinyapp"
                 # Return datatable with the csv option to save the table directly
                 # Download options following this -> https://rstudio.github.io/DT/003-tabletools-buttons.html
                 # Also this -> https://github.com/rstudio/DT/issues/409
