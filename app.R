@@ -56,9 +56,9 @@ ui <- shiny::fluidPage(
 # Define server logic required to draw a histogram
 server <- function(input, output, session) {
     # Setting maximum file size to 8GB
-    options(shiny.maxRequestSize = 8000 * 1024 ^ 2)
+    base::options(shiny.maxRequestSize = 8000 * 1024 ^ 2)
     
-    observeEvent(input$apply_checkbox, {
+    shiny::observeEvent(input$apply_checkbox, {
         shinyjs::toggle("interactive_filter")
     })
     
@@ -79,12 +79,21 @@ server <- function(input, output, session) {
         img_obj <<- jpeg::readJPEG(file2$datapath)
         
         # Subset character/factor columns with <= 50 unique values
-        feat_ch1 <- base::sapply(metadata_df, function(x) base::length(base::unique(x)) <= 50)
-        feat_ch2 <- base::sapply(base::colnames(metadata_df), function(x) !base::is.numeric(metadata_df[, x]))
+        feat_ch1 <- base::sapply(metadata_df, function(x) {
+            base::length(base::unique(x)) <= 50
+            })
+        
+        feat_ch2 <- base::sapply(base::colnames(metadata_df), function(x) {
+            !base::is.numeric(metadata_df[, x])
+            })
+        
         feat_ch <- base::colnames(metadata_df)[feat_ch1 & feat_ch2]
         
         # Subset numeric metadata columns
-        feat_num1 <- base::sapply(base::colnames(metadata_df), function(x) base::is.numeric(metadata_df[, x]))
+        feat_num1 <- base::sapply(base::colnames(metadata_df), function(x) {
+            base::is.numeric(metadata_df[, x])
+            })
+        
         feat_num <- base::colnames(metadata_df)[feat_num1]
         
         # Join metadata variables of interest subset
