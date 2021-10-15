@@ -21,10 +21,18 @@ if (! base::exists("img")) img_obj <- NULL
 ui <- shiny::fluidPage(
     # Add a theme
     theme = shinythemes::shinytheme("flatly"),
-
-    # Application title
-    shiny::titlePanel("Pathology annotation"),
-
+    
+    ### TITLE
+    shiny::titlePanel(
+        shiny::fluidRow(
+            shiny::column(1),
+            shiny::column(8, 
+                          shiny::h1("Spatial-Transcriptomics Digital Pathology Annotation")), 
+            shiny::column(2, shiny::img(width = 300, src = "logo-cnag.jpg")),
+            shiny::column(1),
+            )
+        ),
+        
     # Sidebar with a slider input for number of bins
     shiny::sidebarLayout(
         shiny::sidebarPanel(width = 2,
@@ -298,7 +306,7 @@ server <- function(input, output, session) {
                       filter = "top",
                       options = list(
                           lengthMenu = c(10, 25, 50),
-                          pageLength = 5)
+                          pageLength = 10)
         )
     })
     
