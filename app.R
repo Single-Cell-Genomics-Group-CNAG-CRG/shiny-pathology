@@ -66,13 +66,25 @@ ui <- shiny::fluidPage(
             # Radio button to choose to show gene or metadata feature
             shiny::radioButtons("radio", "Choose coloring:",
                                 c("Group" = "grp",
-                                  "Gene" = "gene"))
+                                  "Gene" = "gene")),
+            
+            # Radio button to C
+            shiny::actionButton(inputId = "de_run", "Run DE:")
             
             ),
         # Show a plot of the generated distribution
         shiny::mainPanel(
-            plotly::plotlyOutput("sel_plot", width = "100%", height = 800),
-            DT::DTOutput("barcode_table")
+            shiny::tabsetPanel(type = "tabs",
+                               shiny::tabPanel("Plot",
+                                               plotly::plotlyOutput(
+                                                   "sel_plot",
+                                                   width = "100%",
+                                                   height = 800),
+                                               DT::DTOutput(
+                                                   "barcode_table")),
+                        tabPanel("DE Table", DT::DTOutput("de_table"))
+            )
+            
         )
     )
 )
@@ -163,6 +175,27 @@ server <- function(input, output, session) {
         metadata_df[base::colnames(expr_mtrx), ]
     })
     
+    ### Trying DE table
+    de_table <- shiny::eventReactive(input$de_run, {
+        
+        base::rownames(metadata_df) <- metadata_df$barcode
+        metadata_df <- metadata_df %>%
+            dplyr::mutate(
+                sel_group = dplyr::if_else(
+                    barcode %in% d$barcode, "selected", "unselected"))
+        metadata_df <- metadata_df[base::colnames(expr_mtrx), ]
+        
+        se_obj <- Seurat::CreateSeuratObject(counts = expr_mtrx,
+                                             meta.data = metadata_df)
+        
+        Seurat::Idents(se_obj) <- metadata_df[, "sel_group"]
+        
+        markers <- Seurat::FindMarkers(object = se_obj,
+                                       ident.1 = "selected",
+                                       ident.2 = "unselected")
+        markers <- markers %>% tibble::rownames_to_column("gene")
+    })
+    
     # Lasso selection plot
     output$sel_plot <- plotly::renderPlotly({
         
@@ -229,9 +262,9 @@ server <- function(input, output, session) {
                 )
             
             
-            d <- plotly::event_data(event = "plotly_selected")
+            d <<- plotly::event_data(event = "plotly_selected")
             if (!base::is.null(d)) {
-                d <- d %>%
+                d <<- d %>%
                     # we need to round the numbers to 6 since those are the coord that the metadata gives, shiny app returns up tp 14 decimals so the left join doesn't work
                     dplyr::mutate(
                         x = base::as.character(base::round(x, 6)),
@@ -256,7 +289,29 @@ server <- function(input, output, session) {
                     )
                 )
             }
-        })}
+        })
+    
+    # Differential Expression Table, table is generated in a reactive event so it can be picked up by de_table and the download button
+    output$de_table <- DT::renderDT({
+        
+        DT::datatable(de_table(),
+                      filter = "top",
+                      options = list(
+                          lengthMenu = c(10, 25, 50),
+                          pageLength = 5)
+        )
+    })
+    
+    # Download csv of DE table generated
+    # output$downloadData <- downloadHandler(
+    #     filename = "DE_shiny.csv",
+    #     content = function(file) {
+    #         utils::write.csv(de_table(),
+    #                   file = file,
+    #                   row.names = FALSE)
+    #         })
+    
+    }
 
 # Run the application 
 shiny::shinyApp(ui = ui, server = server)
