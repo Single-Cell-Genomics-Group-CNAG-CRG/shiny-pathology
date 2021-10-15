@@ -34,6 +34,11 @@ ui <- shiny::fluidPage(
                       multiple = FALSE),
             
             # Load Expression data
+            shiny::fileInput(inputId = "expr",
+                             label = "Expression matrix",
+                             multiple = FALSE),
+            
+            # Load Image Jpeg
             shiny::fileInput(inputId = "img_fn",
                       label = "Image",
                       multiple = FALSE),
@@ -42,11 +47,27 @@ ui <- shiny::fluidPage(
             shiny::selectizeInput("groupby", "Coloring feature:",
                            selected = NULL,
                            choices = NULL,
-                           options = list(create = TRUE),
+                           options = base::list(create = TRUE),
                            # multiple = TRUE,
                            multiple = FALSE),
             shiny::actionButton(inputId = "apply_groupby",
                                 label = "Update Grouping"),
+            
+            # Select genes to use as marker
+            shiny::selectizeInput("gene_mrkr", "Select marker gene:",
+                           selected = NULL,
+                           choices = NULL,
+                           # Don't allow to create new gene names
+                           options = base::list(create = FALSE),
+                           multiple = FALSE),
+            shiny::actionButton(inputId = "apply_marker",
+                                label = "Update marker"),
+            
+            # Radio button to choose to show gene or metadata feature
+            shiny::radioButtons("radio", "Choose coloring:",
+                                c("Group" = "grp",
+                                  "Gene" = "gene"))
+            
             ),
         # Show a plot of the generated distribution
         shiny::mainPanel(
@@ -70,47 +91,58 @@ server <- function(input, output, session) {
     ##############################
     shiny::observe({
         
-        # Load data
-        # Read marker list
+        # Load metadata
         file1 <- input$metadata
         if (base::is.null(file1)) return()
         metadata_df <<- base::readRDS(file1$datapath)
         
+        # Load jpeg image
         file2 <- input$img_fn
         if (base::is.null(file2)) return()
         # Load image as jpg
         img_obj <<- jpeg::readJPEG(file2$datapath)
         
+        # Load expression matrix
+        file3 <- input$expr
+        if(base::is.null(file3)) return()
+        # Keep the count matrix sparse
+        expr_mtrx <<- base::readRDS(file3$datapath) %>%
+            Matrix::Matrix(data = ., sparse = TRUE)
+        
+        # Update filter gene
+        shiny::updateSelectizeInput(
+            session,
+            inputId = "gene_mrkr",
+            choices = base::rownames(expr_mtrx),
+            selected = base::rownames(expr_mtrx)[1],
+            # consider using server-side selectize for massively improved performance. See the Details section of the ?selectizeInput help topic.
+            # The server-side selectize input uses R to process searching, and R will return the filtered data to selectize.
+            server = TRUE)
+        
         # Subset character/factor columns with <= 50 unique values
         feat_ch1 <- base::sapply(metadata_df, function(x) {
             base::length(base::unique(x)) <= 50
             })
-        
-        feat_ch2 <- base::sapply(base::colnames(metadata_df), function(x) {
-            !base::is.numeric(metadata_df[, x])
-            })
-        
-        feat_ch <- base::colnames(metadata_df)[feat_ch1 & feat_ch2]
-        
-        # Subset numeric metadata columns
-        feat_num1 <- base::sapply(base::colnames(metadata_df), function(x) {
+        # Keep numeric columns
+        feat_num <- base::sapply(base::colnames(metadata_df), function(x) {
             base::is.numeric(metadata_df[, x])
             })
+        # Remove coord_x, coord_y
+        feat_num <- feat_num[!feat_num %in% c("coord_x", "coord_y")]
         
-        feat_num <- base::colnames(metadata_df)[feat_num1]
-        
-        # Join metadata variables of interest subset
-        feat_sub <- c(feat_ch, feat_num)
+        # Get features to show for the metadata either character with less than 50 categories or numeric
+        feats <- base::colnames(metadata_df)[feat_ch1 | feat_num]
         
         # Update groupby selection
-        shiny::updateSelectizeInput(session,
-                             inputId = "groupby",
-                             choices = c("", 
-                                         feat_sub),
-                             selected = feat_sub[1],
-                             # consider using server-side selectize for massively improved performance. See the Details section of the ?selectizeInput help topic.
-                             # The server-side selectize input uses R to process searching, and R will return the filtered data to selectize.
-                             server = TRUE)
+        shiny::updateSelectizeInput(
+            session,
+            inputId = "groupby",
+            choices = c("", 
+                        feats),
+            selected = feats[1],
+            # consider using server-side selectize for massively improved performance. See the Details section of the ?selectizeInput help topic.
+            # The server-side selectize input uses R to process searching, and R will return the filtered data to selectize.
+            server = TRUE)
     })
     
     ########################################
@@ -120,9 +152,15 @@ server <- function(input, output, session) {
         input$groupby
     })
     
+    gene_viz <- shiny::eventReactive(input$apply_marker, {
+        input$gene_mrkr
+    })
+    
     df_input <- shiny::reactive({
         ## modifying metadata to see if this helps
+        ## Need to add this groupby_var() ordering so the app can read the metata file, need to check why
         metadata_df[base::order(metadata_df[, groupby_var()]), ]
+        metadata_df[base::colnames(expr_mtrx), ]
     })
     
     # Lasso selection plot
@@ -130,16 +168,26 @@ server <- function(input, output, session) {
         
         # Read data from reactive observed slots
         metadata_df <- df_input()
-
+        
+        # Set the color vector
+        color_vr <- if (input$radio == "grp") {
+            col_vec <- metadata_df[, groupby_var()]
+        } else if (input$radio == "gene") {
+            col_vec <- expr_mtrx[gene_viz() , ]
+            # Below doesn't work well with selectize
+            # col_vec <- expr_mtrx[input$gene_mrkr, ]
+        }
+        
         pp <- plotly::plot_ly(
             data = metadata_df,
             x = metadata_df[, "coord_x"],
             y = metadata_df[, "coord_y"],
             # color = metadata_df[, groupby_var()],
-            color = metadata_df[, "Spatial_snn_res.0.8"],
-            size = 0.75,
-            alpha = 0.5
+            color = col_vec,
+            size = 0.4,
+            alpha = 0.9
         ) %>%
+        # https://plotly-r.com/embedding-images.html
         plotly::layout(
             dragmode = "lasso",
             yaxis = base::list(
@@ -147,10 +195,14 @@ server <- function(input, output, session) {
                 scaleratio = 1),
             images = base::list(
                 source = plotly::raster2uri(grDevices::as.raster(img_obj)),
-                x = 0, y = -base::nrow(img_obj),
-                sizex = base::ncol(img_obj), sizey = -base::nrow(img_obj),
-                xref = "x", yref = "y",
-                xanchor = "left", yanchor = "bottom",
+                x = 0,
+                y = -base::nrow(img_obj),
+                sizex = base::ncol(img_obj),
+                sizey = -base::nrow(img_obj),
+                xref = "x",
+                yref = "y",
+                xanchor = "left",
+                yanchor = "bottom",
                 # https://plotly.com/r/reference/#Layout_and_layout_style_objects
                 sizing = "contain",
                 layer = "below"
